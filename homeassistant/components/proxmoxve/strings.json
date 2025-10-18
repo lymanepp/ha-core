@@ -1,0 +1,73 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Proxmox VE",
+        "description": "Enter your Proxmox VE server details",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "username": "Username",
+          "password": "Password",
+          "realm": "Realm",
+          "verify_ssl": "Verify SSL certificate"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate with Proxmox VE",
+        "description": "The credentials for {host} (user: {username}) are no longer valid. Please enter the password to reauthenticate.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to Proxmox VE server. Check the host, port, and network connectivity.",
+      "invalid_auth": "Invalid username or password. Please check your credentials.",
+      "unknown": "An unexpected error occurred. Please check the logs for more details."
+    },
+    "abort": {
+      "already_configured": "This Proxmox VE server is already configured",
+      "cannot_connect": "Unable to connect to the Proxmox VE server during import",
+      "no_resources": "No VMs or containers found on this node"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Proxmox VE monitoring",
+        "description": "Select nodes and resources to monitor"
+      },
+      "select_node": {
+        "title": "Select node to configure",
+        "description": "Choose a node to configure which VMs and containers to monitor. You have configured {configured_count} node(s). Select 'Done' when finished.",
+        "data": {
+          "node": "Node",
+          "action": "Action"
+        },
+        "menu_options": {
+          "configure": "Configure a node",
+          "done": "Finish configuration"
+        }
+      },
+      "select_resources": {
+        "title": "Select resources for {node}",
+        "description": "Select which VMs and containers to monitor on node {node}. This node has {vm_count} VM(s) and {container_count} container(s) available.",
+        "data": {
+          "vms": "Virtual machines",
+          "containers": "Containers"
+        }
+      }
+    },
+    "abort": {
+      "cannot_connect": "Unable to connect to the Proxmox VE server",
+      "no_resources": "No VMs or containers available on this node"
+    }
+  },
+  "issues": {
+    "yaml_deprecated": {
+      "title": "Proxmox VE YAML configuration is being removed",
+      "description": "Configuring Proxmox VE using YAML is being removed.\n\nYour existing YAML configuration has been automatically imported into the UI. You can now configure Proxmox VE from the integrations page.\n\nRemove the `proxmoxve` configuration from your `configuration.yaml` file and restart Home Assistant to fix this issue."
+    }
+  }
+}
