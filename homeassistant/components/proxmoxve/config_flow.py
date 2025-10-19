@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from proxmoxer import AuthenticationError, ProxmoxAPI
+from proxmoxer import AuthenticationError
 import requests.exceptions
 from requests.exceptions import ConnectTimeout, SSLError
 import voluptuous as vol
@@ -41,8 +41,6 @@ from .const import (
     DEFAULT_REALM,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
-    TYPE_CONTAINER,
-    TYPE_VM,
 )
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
@@ -74,15 +72,15 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
             data[CONF_VERIFY_SSL],
         )
         proxmox_client.build_client()
-        
+
         # Get available nodes
         proxmox = proxmox_client.get_api_client()
         nodes = [node["node"] for node in proxmox.nodes.get()]
-        
+
         return proxmox_client, nodes
 
     try:
-        client, nodes = await hass.async_add_executor_job(build_client)
+        _client, nodes = await hass.async_add_executor_job(build_client)
     except AuthenticationError as err:
         raise InvalidAuth from err
     except SSLError as err:
@@ -117,11 +115,11 @@ class ProxmoxVEConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 info = await validate_input(self.hass, user_input)
-            except CannotConnect as err:
+            except CannotConnect:
                 errors["base"] = "cannot_connect"
             except InvalidAuth:
                 errors["base"] = "invalid_auth"
-            except Exception:
+            except Exception:  # noqa: BLE001
                 errors["base"] = "unknown"
             else:
                 # Set unique ID to prevent duplicate entries for same host
@@ -169,7 +167,7 @@ class ProxmoxVEConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             except InvalidAuth:
                 errors["base"] = "invalid_auth"
-            except Exception:
+            except Exception:  # noqa: BLE001
                 errors["base"] = "unknown"
             else:
                 return self.async_update_reload_and_abort(
@@ -187,7 +185,9 @@ class ProxmoxVEConfigFlow(ConfigFlow, domain=DOMAIN):
             },
         )
 
-    async def async_step_import(self, import_config: dict[str, Any]) -> ConfigFlowResult:
+    async def async_step_import(
+        self, import_config: dict[str, Any]
+    ) -> ConfigFlowResult:
         """Handle import from YAML configuration."""
         # Extract host-level config
         host_data = {
@@ -243,13 +243,17 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
         self._nodes_config: dict[str, dict[str, list[int]]] = {}
         self._available_vms: dict[int, str] = {}
         self._available_containers: dict[int, str] = {}
+        self._node_resources: dict[str, dict[str, dict[int, str]]] = {}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Manage the options."""
+
         # Build client to discover available nodes and VMs/containers
-        def get_proxmox_data() -> tuple[list[str], dict[str, dict[str, dict[int, str]]]]:
+        def get_proxmox_data() -> tuple[
+            list[str], dict[str, dict[str, dict[int, str]]]
+        ]:
             """Get nodes, VMs, and containers from Proxmox."""
             proxmox_client = ProxmoxClient(
                 self.config_entry.data[CONF_HOST],
@@ -263,36 +267,38 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
             proxmox = proxmox_client.get_api_client()
 
             nodes = [node["node"] for node in proxmox.nodes.get()]
-            
+
             # Get VMs and containers for all nodes
             node_resources: dict[str, dict[str, dict[int, str]]] = {}
             for node in nodes:
                 vms = {}
                 containers = {}
-                
+
                 # Get VMs
                 try:
                     for vm in proxmox.nodes(node).qemu.get():
                         vms[vm["vmid"]] = vm.get("name", f"VM {vm['vmid']}")
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
-                
+
                 # Get containers
                 try:
                     for container in proxmox.nodes(node).lxc.get():
-                        containers[container["vmid"]] = container.get("name", f"CT {container['vmid']}")
-                except Exception:
+                        containers[container["vmid"]] = container.get(
+                            "name", f"CT {container['vmid']}"
+                        )
+                except Exception:  # noqa: BLE001
                     pass
-                
+
                 node_resources[node] = {"vms": vms, "containers": containers}
-            
+
             return nodes, node_resources
 
         try:
             self._nodes, node_resources = await self.hass.async_add_executor_job(
                 get_proxmox_data
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             return self.async_abort(reason="cannot_connect")
 
         # Load existing configuration
@@ -313,12 +319,14 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
             nodes_list = []
             for node_name, config in self._nodes_config.items():
                 if config[CONF_VMS] or config[CONF_CONTAINERS]:
-                    nodes_list.append({
-                        CONF_NODE: node_name,
-                        CONF_VMS: config[CONF_VMS],
-                        CONF_CONTAINERS: config[CONF_CONTAINERS],
-                    })
-            
+                    nodes_list.append(
+                        {
+                            CONF_NODE: node_name,
+                            CONF_VMS: config[CONF_VMS],
+                            CONF_CONTAINERS: config[CONF_CONTAINERS],
+                        }
+                    )
+
             return self.async_create_entry(
                 title="",
                 data={CONF_NODES: nodes_list},
@@ -338,17 +346,19 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
                 nodes_list = []
                 for node_name, config in self._nodes_config.items():
                     if config[CONF_VMS] or config[CONF_CONTAINERS]:
-                        nodes_list.append({
-                            CONF_NODE: node_name,
-                            CONF_VMS: config[CONF_VMS],
-                            CONF_CONTAINERS: config[CONF_CONTAINERS],
-                        })
-                
+                        nodes_list.append(
+                            {
+                                CONF_NODE: node_name,
+                                CONF_VMS: config[CONF_VMS],
+                                CONF_CONTAINERS: config[CONF_CONTAINERS],
+                            }
+                        )
+
                 return self.async_create_entry(
                     title="",
                     data={CONF_NODES: nodes_list},
                 )
-            
+
             # User selected a node to configure
             self._current_node = user_input["node"]
             return await self.async_step_select_resources()
@@ -357,25 +367,37 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
         node_options = []
         for node in self._nodes:
             vms_count = len(self._nodes_config.get(node, {}).get(CONF_VMS, []))
-            containers_count = len(self._nodes_config.get(node, {}).get(CONF_CONTAINERS, []))
+            containers_count = len(
+                self._nodes_config.get(node, {}).get(CONF_CONTAINERS, [])
+            )
             label = f"{node} ({vms_count} VMs, {containers_count} containers)"
             node_options.append({"value": node, "label": label})
-        
+
         # Add "Done" option
         node_options.append({"value": "DONE", "label": "✓ Finish configuration"})
 
         return self.async_show_form(
             step_id="select_node",
-            data_schema=vol.Schema({
-                vol.Required("node"): SelectSelector(
-                    SelectSelectorConfig(
-                        options=node_options,
-                        mode=SelectSelectorMode.DROPDOWN,
+            data_schema=vol.Schema(
+                {
+                    vol.Required("node"): SelectSelector(
+                        SelectSelectorConfig(
+                            options=node_options,
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
+            description_placeholders={
+                "configured_count": str(
+                    len(
+                        [
+                            n
+                            for n, c in self._nodes_config.items()
+                            if c[CONF_VMS] or c[CONF_CONTAINERS]
+                        ]
                     )
                 ),
-            }),
-            description_placeholders={
-                "configured_count": str(len([n for n, c in self._nodes_config.items() if c[CONF_VMS] or c[CONF_CONTAINERS]])),
             },
             last_step=False,
         )
@@ -392,7 +414,7 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
                     int(ct_id) for ct_id in user_input.get(CONF_CONTAINERS, [])
                 ],
             }
-            
+
             # Go back to node selection
             return await self.async_step_select_node()
 
@@ -408,10 +430,9 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
 
         # Build VM options
         vm_options = [
-            {"value": str(vmid), "label": name}
-            for vmid, name in available_vms.items()
+            {"value": str(vmid), "label": name} for vmid, name in available_vms.items()
         ]
-        
+
         # Build container options
         container_options = [
             {"value": str(ctid), "label": name}
@@ -419,7 +440,7 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
         ]
 
         schema = {}
-        
+
         if vm_options:
             schema[vol.Optional(CONF_VMS, default=current_vms)] = SelectSelector(
                 SelectSelectorConfig(
@@ -428,13 +449,15 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
                     mode=SelectSelectorMode.DROPDOWN,
                 )
             )
-        
+
         if container_options:
-            schema[vol.Optional(CONF_CONTAINERS, default=current_containers)] = SelectSelector(
-                SelectSelectorConfig(
-                    options=container_options,
-                    multiple=True,
-                    mode=SelectSelectorMode.DROPDOWN,
+            schema[vol.Optional(CONF_CONTAINERS, default=current_containers)] = (
+                SelectSelector(
+                    SelectSelectorConfig(
+                        options=container_options,
+                        multiple=True,
+                        mode=SelectSelectorMode.DROPDOWN,
+                    )
                 )
             )
 

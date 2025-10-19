@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import logging
 from typing import Any
 
 from proxmoxer import AuthenticationError, ProxmoxAPI
@@ -22,28 +23,26 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv, issue_registry as ir
-from homeassistant.helpers.discovery import async_load_platform
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .common import ProxmoxClient, call_api_container_vm, parse_api_container_vm
 from .const import (
-    _LOGGER,
     CONF_CONTAINERS,
     CONF_NODE,
     CONF_NODES,
     CONF_REALM,
     CONF_VMS,
-    COORDINATORS,
     DEFAULT_PORT,
     DEFAULT_REALM,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
-    PROXMOX_CLIENTS,
     TYPE_CONTAINER,
     TYPE_VM,
     UPDATE_INTERVAL,
 )
+
+_LOGGER = logging.getLogger(__package__)
 
 type ProxmoxVEConfigEntry = ConfigEntry[ProxmoxVERuntimeData]
 
@@ -95,7 +94,9 @@ class ProxmoxVERuntimeData:
     def __init__(
         self,
         proxmox_client: ProxmoxClient,
-        coordinators: dict[str, dict[int, DataUpdateCoordinator[dict[str, Any] | None]]],
+        coordinators: dict[
+            str, dict[int, DataUpdateCoordinator[dict[str, Any] | None]]
+        ],
     ) -> None:
         """Initialize runtime data."""
         self.proxmox_client = proxmox_client
@@ -116,7 +117,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                     data=entry_config,
                 )
             )
-        
+
         # Create repair issue to inform user about YAML deprecation
         ir.async_create_issue(
             hass,
@@ -153,9 +154,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ProxmoxVEConfigEntry) ->
     except AuthenticationError as err:
         raise ConfigEntryAuthFailed("Invalid credentials") from err
     except SSLError as err:
-        raise ConfigEntryNotReady(
-            f"Unable to verify SSL certificate: {err}"
-        ) from err
+        raise ConfigEntryNotReady(f"Unable to verify SSL certificate: {err}") from err
     except ConnectTimeout as err:
         raise ConfigEntryNotReady(f"Connection timeout: {err}") from err
     except requests.exceptions.ConnectionError as err:
@@ -164,7 +163,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ProxmoxVEConfigEntry) ->
     proxmox = proxmox_client.get_api_client()
 
     # Create coordinators for each VM/container from options
-    coordinators: dict[str, dict[int, DataUpdateCoordinator[dict[str, Any] | None]]] = {}
+    coordinators: dict[
+        str, dict[int, DataUpdateCoordinator[dict[str, Any] | None]]
+    ] = {}
 
     for node_config in entry.options.get(CONF_NODES, []):
         node_name = node_config[CONF_NODE]

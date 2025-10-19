@@ -7,7 +7,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from . import ProxmoxVEConfigEntry
@@ -18,7 +18,7 @@ from .entity import ProxmoxEntity
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ProxmoxVEConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up binary sensors from a config entry."""
     runtime_data = entry.runtime_data
