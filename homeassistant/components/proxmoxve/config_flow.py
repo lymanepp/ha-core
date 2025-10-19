@@ -25,6 +25,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.selector import (
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -364,7 +365,7 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
             return await self.async_step_select_resources()
 
         # Build list of nodes with their current status
-        node_options = []
+        node_options: list[SelectOptionDict] = []
         for node in self._nodes:
             vms_count = len(self._nodes_config.get(node, {}).get(CONF_VMS, []))
             containers_count = len(
@@ -408,6 +409,7 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
         """Select VMs and containers for the current node."""
         if user_input is not None:
             # Save the configuration for this node (convert strings to ints)
+            assert self._current_node is not None
             self._nodes_config[self._current_node] = {
                 CONF_VMS: [int(vm_id) for vm_id in user_input.get(CONF_VMS, [])],
                 CONF_CONTAINERS: [
@@ -419,6 +421,7 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
             return await self.async_step_select_node()
 
         # Get available VMs and containers for this node
+        assert self._current_node is not None
         node_data = self._node_resources.get(self._current_node, {})
         available_vms = node_data.get("vms", {})
         available_containers = node_data.get("containers", {})
@@ -429,12 +432,12 @@ class ProxmoxVEOptionsFlow(OptionsFlow):
         current_containers = current_config.get(CONF_CONTAINERS, [])
 
         # Build VM options
-        vm_options = [
+        vm_options: list[SelectOptionDict] = [
             {"value": str(vmid), "label": name} for vmid, name in available_vms.items()
         ]
 
         # Build container options
-        container_options = [
+        container_options: list[SelectOptionDict] = [
             {"value": str(ctid), "label": name}
             for ctid, name in available_containers.items()
         ]
