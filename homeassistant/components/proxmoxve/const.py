@@ -1,7 +1,5 @@
 """Constants for ProxmoxVE."""
 
-import logging
-
 DOMAIN = "proxmoxve"
 PROXMOX_CLIENTS = "proxmox_clients"
 CONF_REALM = "realm"
@@ -18,5 +16,3 @@ DEFAULT_VERIFY_SSL = True
 TYPE_VM = 0
 TYPE_CONTAINER = 1
 UPDATE_INTERVAL = 60
-
-_LOGGER = logging.getLogger(__package__)

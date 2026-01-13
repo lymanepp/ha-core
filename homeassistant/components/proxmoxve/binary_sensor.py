@@ -7,50 +7,64 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import COORDINATORS, DOMAIN, PROXMOX_CLIENTS
+from . import ProxmoxVEConfigEntry
+from .const import CONF_CONTAINERS, CONF_NODE, CONF_NODES, CONF_VMS
 from .entity import ProxmoxEntity
 
 
-async def async_setup_platform(
+async def async_setup_entry(
     hass: HomeAssistant,
-    config: ConfigType,
-    add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
+    entry: ProxmoxVEConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up binary sensors."""
-    if discovery_info is None:
-        return
+    """Set up binary sensors from a config entry."""
+    runtime_data = entry.runtime_data
+    coordinators = runtime_data.coordinators
 
     sensors = []
 
-    for host_config in discovery_info["config"][DOMAIN]:
-        host_name = host_config["host"]
-        host_name_coordinators = hass.data[DOMAIN][COORDINATORS][host_name]
+    for node_config in entry.options.get(CONF_NODES, []):
+        node_name = node_config[CONF_NODE]
 
-        if hass.data[PROXMOX_CLIENTS][host_name] is None:
+        if node_name not in coordinators:
             continue
 
-        for node_config in host_config["nodes"]:
-            node_name = node_config["node"]
+        for vm_id in node_config.get(CONF_VMS, []):
+            if vm_id not in coordinators[node_name]:
+                continue
 
-            for dev_id in node_config["vms"] + node_config["containers"]:
-                coordinator = host_name_coordinators[node_name][dev_id]
+            coordinator = coordinators[node_name][vm_id]
 
-                # unfound case
-                if (coordinator_data := coordinator.data) is None:
-                    continue
+            # Skip if coordinator doesn't have data yet
+            if (coordinator_data := coordinator.data) is None:
+                continue
 
-                name = coordinator_data["name"]
-                sensor = create_binary_sensor(
-                    coordinator, host_name, node_name, dev_id, name
-                )
-                sensors.append(sensor)
+            name = coordinator_data["name"]
+            sensor = create_binary_sensor(
+                coordinator, entry.data["host"], node_name, vm_id, name
+            )
+            sensors.append(sensor)
 
-    add_entities(sensors)
+        for container_id in node_config.get(CONF_CONTAINERS, []):
+            if container_id not in coordinators[node_name]:
+                continue
+
+            coordinator = coordinators[node_name][container_id]
+
+            # Skip if coordinator doesn't have data yet
+            if (coordinator_data := coordinator.data) is None:
+                continue
+
+            name = coordinator_data["name"]
+            sensor = create_binary_sensor(
+                coordinator, entry.data["host"], node_name, container_id, name
+            )
+            sensors.append(sensor)
+
+    async_add_entities(sensors)
 
 
 def create_binary_sensor(
